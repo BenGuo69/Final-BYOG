@@ -1,0 +1,413 @@
+import pygame, sys, os, random, math
+
+
+WIN_W = 1200
+WIN_H = 670
+
+pygame.init()
+pygame.display.set_caption('Shooting Game')
+screen = pygame.display.set_mode((WIN_W, WIN_H), pygame.SRCALPHA)
+
+TIMER = 0
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+
+PLAYER_WIDTHL = 100
+PLAYER_HEIGHTL = 85
+
+PLAYER_WIDTHR = 95
+PLAYER_HEIGHTR = 90
+
+POWER_UP_WIDTH = 60
+POWER_UP_HEIGHT = 40
+
+class Shield(pygame.sprite.Sprite):
+    def __init__(self, w, h, xpos, ypos):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("image/bubbleshield.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (w, h))
+        self.rect = self.image.get_rect()
+        self.rect.y = ypos
+        self.rect.x = xpos
+        self.energy = 100
+
+    def update(self, bullet, player, screen):
+        self.rect.x = player.rect.x - 45
+        self.rect.y = player.rect.y - 25
+        screen.blit(self.image, self.rect)
+        collision = pygame.sprite.spritecollide(self, bullet, True)
+        for p in collision:
+            self.energy -= p.energy
+        if self.energy <= 0:
+            self.kill()
+            player.shield_on = False
+
+class ShieldEnemy(pygame.sprite.Sprite):
+    def __init__(self, w, h, xpos, ypos):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("image/bubbleshield.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (w, h))
+        self.rect = self.image.get_rect()
+        self.rect.y = ypos
+        self.rect.x = xpos
+        self.energy = 100
+
+    def update(self, bullet, player, screen):
+        self.rect.x = player.rect.x - 20
+        self.rect.y = player.rect.y - 20
+        screen.blit(self.image, self.rect)
+        collision = pygame.sprite.spritecollide(self, bullet, True)
+        for p in collision:
+            self.energy -= p.energy
+        if self.energy <= 0:
+            self.kill()
+            player.shield_on = False
+
+
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, xpos, ypos, angle):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("image/wo.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (10, 10))
+        self.speed = 0.25
+        self.rect = self.image.get_rect()
+        self.rect.y = ypos
+        self.rect.x = xpos
+        self.angle = angle
+        self.energy = 10
+
+    def update(self):
+        #print self.angle
+        self.rect.y -= math.degrees(math.sin(math.radians(self.angle))) * self.speed
+        self.rect.x -= math.degrees(math.cos(math.radians(self.angle))) * self.speed
+
+        if self.rect.y > WIN_W or self.rect.y < 0:
+            self.kill()
+
+
+class BulletEnemy(pygame.sprite.Sprite):
+    def __init__(self, xpos, ypos, angle):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("image/wo2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (30, 30))
+        self.speed = 0.3
+        self.rect = self.image.get_rect()
+        self.rect.y = ypos
+        self.rect.centerx = xpos
+        self.angle = angle
+        self.energy = 20
+
+    def update(self):
+        self.rect.y -= math.degrees(math.sin(math.radians(self.angle))) * self.speed
+        self.rect.x -= math.degrees(math.cos(math.radians(self.angle))) * self.speed
+
+        if self.rect.y > WIN_W or self.rect.y < 0:
+            self.kill()
+
+class Text():
+    def __init__(self, size, text, x, y):
+        self.font = pygame.font.SysFont("None", size)
+        self.image = self.font.render(text, 1, WHITE)
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.centery = y
+
+class Game():
+    def __init__(self, intro, play, outro):
+        self.intro = intro
+        self.play = play
+        self.outro = outro
+
+
+class Playerleft(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        pygame.sprite.Sprite.__init__(self)
+        self.speed = 7
+        self.jump_speed = 10
+        self.image = pygame.image.load("image/playerlcorrect.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (PLAYER_WIDTHL, PLAYER_HEIGHTL))
+        self.rect= self.image.get_rect()
+        self.rect = self.rect.move(x, y)
+        self.jumping = False
+        self.energy = 100
+        self.direction = direction
+        self.angle = 0
+        self.potential = 0
+        self.shield_on = False
+
+    def update(self, bullet_group, bullet_group_enemy, pr, shield, screen, game):
+        global TIMER
+        key = pygame.key.get_pressed()
+
+        if key[pygame.K_w]:
+            self.rect.y -= self.jump_speed
+        if key[pygame.K_s]:
+            self.rect.y += self.jump_speed
+        if key[pygame.K_a]:
+            self.rect.x -= self.speed
+        if key[pygame.K_d]:
+            self.rect.x += self.speed
+        if key[pygame.K_q] and self.potential == 100:
+            self.shield_on = True
+            shield.add(Shield(PLAYER_WIDTHL + 60, PLAYER_HEIGHTL + 60, self.rect.x - 45, self.rect.y - 25))
+            self.potential = 0
+
+
+        #BULLETS
+        if key[pygame.K_SPACE]:
+            if TIMER % 15 == 0 and self.direction == "left":
+                self.angle = 0
+                b = Bullet(self.rect.centerx - 40, self.rect.y + 29, self.angle)
+                bullet_group.add(b)
+
+                c = Bullet(self.rect.centerx - 40, self.rect.y + 39, self.angle)
+                bullet_group.add(c)
+            elif TIMER % 20 == 0 and self.direction == "right":
+                self.angle = 180
+                b = Bullet(self.rect.centerx + 35, self.rect.y + 29, self.angle)
+                bullet_group.add(b)
+
+                c = Bullet(self.rect.centerx + 35, self.rect.y + 39, self.angle)
+                bullet_group.add(c)
+
+        if pr.rect.x < self.rect.x and self.direction == "right":
+            self.image = pygame.transform.flip(self.image, True, False)
+            self.direction = "left"
+        if pr.rect.x > self.rect.x and self.direction == "left":
+            self.image = pygame.transform.flip(self.image, True, False)
+            self.direction = "right"
+
+        if self.rect.right > WIN_W:
+            self.rect.right = WIN_W
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.bottom > WIN_H - 60:
+            self.rect.bottom = WIN_H - 60
+        if self.rect.top < 0:
+            self.rect.top = 0
+
+
+        print("PLAYER LEFT ENERGY:", self.energy)
+
+        collision = pygame.sprite.spritecollide(self, bullet_group_enemy, True)
+        for p in collision:
+            self.energy -= p.energy
+        if self.energy <= 0:
+            pr.energy += 1000
+            self.image = pygame.transform.scale(self.image, (0, 0))
+            self.kill()
+            game.play = False
+            game.outro = True
+
+        if self.shield_on == False:
+            if self.potential < 100:
+                self.potential += 0.5
+
+class Playerright(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        pygame.sprite.Sprite.__init__(self)
+        self.speed = 7
+        self.image = pygame.image.load("image/playerrcorrect.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (PLAYER_WIDTHR, PLAYER_HEIGHTR))
+        self.rect= self.image.get_rect()
+        self.rect = self.rect.move(x, y)
+        self.jumping = False
+        self.jump_speed = 10
+        self.energy = 100
+        self.direction = direction
+        self.angle = 0
+        self.potential = 0
+        self.shield_on = False
+
+    def easteregg(self):
+        self.energy += 100000
+        self.image = pygame.transform.scale(self.image, (PLAYER_WIDTHR + 200, PLAYER_HEIGHTR + 200))
+
+    def update(self, bullet_group_enemy, bullet_group, pl, shield, game):
+        key = pygame.key.get_pressed()
+
+        if self.shield_on == True and key[pygame.K_m] and self.energy < 20 and self.energy > 0 and self.direction == "right":
+            self.easteregg()
+
+        if key[pygame.K_UP]:
+            self.rect.y -= self.jump_speed
+        if key[pygame.K_DOWN]:
+            self.rect.y += self.jump_speed
+        if key[pygame.K_LEFT]:
+            self.rect.x -= self.speed
+        if key[pygame.K_RIGHT]:
+            self.rect.x += self.speed
+        if key[pygame.K_k] and self.potential == 100:
+            self.shield_on = True
+            shield.add(ShieldEnemy(PLAYER_WIDTHR + 60, PLAYER_HEIGHTR + 60, self.rect.x - 20, self.rect.y - 20))
+            self.potential = 0
+
+        #BULLET
+        if key[pygame.K_l]:
+            if TIMER % 15 == 0 and self.direction == "left":
+                self.angle = 0
+                b = BulletEnemy(self.rect.centerx - 40, self.rect.y + 31, self.angle)
+                bullet_group_enemy.add(b)
+            elif TIMER % 15 == 0 and self.direction == "right":
+                self.angle = 180
+                b = BulletEnemy(self.rect.centerx + 35, self.rect.y + 31, self.angle)
+                bullet_group_enemy.add(b)
+
+        if pl.rect.x > self.rect.x and self.direction == "left":
+            self.image = pygame.transform.flip(self.image, True, False)
+            self.direction = "right"
+        if pl.rect.x < self.rect.x and self.direction == "right":
+            self.image = pygame.transform.flip(self.image, True, False)
+            self.direction = "left"
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIN_W:
+            self.rect.right = WIN_W
+        if self.rect.bottom > WIN_H - 60:
+            self.rect.bottom = WIN_H - 60
+        if self.rect.top < 0:
+            self.rect.top = 0
+
+        collision = pygame.sprite.spritecollide(self, bullet_group, True)
+
+        print ("PLAYER RIGHT ENERGY:", self.energy)
+
+        for p in collision:
+            self.energy -= p.energy
+        if self.energy <= 0:
+            pl.energy += 1000
+            self.image = pygame.transform.scale(self.image, (0, 0))
+            self.kill()
+            game.play = False
+            game.outro = True
+
+        if self.shield_on == False:
+            if self.potential < 100:
+                self.potential += 0.5
+
+def main():
+    global TIMER
+
+
+    beg_time = pygame.time.get_ticks()
+    clock = pygame.time.Clock()
+    game = Game(True, False, False)
+
+    bullet_group = pygame.sprite.Group()
+    bullet_group_enemy = pygame.sprite.Group()
+    shield_group = pygame.sprite.Group()
+    shield_group_enemy = pygame.sprite.Group()
+    player_group = pygame.sprite.Group()
+    playerenemy_group = pygame.sprite.Group()
+
+    intro_bg = pygame.image.load("image/intro.jpg").convert_alpha()
+    intro_bg = pygame.transform.scale(intro_bg, (WIN_W, WIN_H))
+
+    play_bg = pygame.image.load("image/play.gif").convert_alpha()
+    play_bg = pygame.transform.scale(play_bg, (WIN_W, WIN_H))
+
+    outro_bg = pygame.image.load("image/outro.jpg").convert_alpha()
+    outro_bg = pygame.transform.scale(outro_bg, (WIN_W, WIN_H))
+
+    playerl = Playerleft(WIN_W/4 - PLAYER_WIDTHL/2, WIN_H - (2 * PLAYER_HEIGHTL) + 50, "right")
+    playerr = Playerright((WIN_W * 3) / 4 - PLAYER_WIDTHR / 2, WIN_H - (2 * PLAYER_HEIGHTL) + 50, "left")
+
+    player_group.add(playerl)
+    playerenemy_group.add(playerr)
+
+    title = Text(100, "Shooting Game", screen.get_rect().centerx, screen.get_rect().centery)
+    outrowinnerl = Text(80, "Left Player Has Won!", screen.get_rect().centerx, screen.get_rect().centery)
+    outrowinnerr = Text(80, "Right Player Has Won!", screen.get_rect().centerx, screen.get_rect().centery)
+    startblink = Text(50, "-Click here to start-", screen.get_rect().centerx, screen.get_rect().height / 1.7)
+    endblink = Text(40, "-Click here to play again-", screen.get_rect().centerx, screen.get_rect().height / 1.7)
+
+
+    while game.intro == True:
+        screen.blit(intro_bg, (0, 0))
+        # Checks if window exit button pressed
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN or pygame.key.get_pressed()[pygame.K_RETURN] != 0:
+                screen.blit(startblink.image, startblink.rect)
+                screen.blit(title.image, title.rect)
+                pygame.display.flip()
+                pygame.time.wait(500)
+                game.intro = False
+                game.play = True
+
+        cur_time = pygame.time.get_ticks()
+        if ((beg_time - cur_time) % 1000) < 500:
+            screen.blit(startblink.image, startblink.rect)
+
+        screen.blit(title.image, title.rect)
+
+        clock.tick(60)
+        pygame.display.flip()
+    while True:
+        while game.play == True:
+            screen.blit(play_bg, (0, 0))
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+
+            potentiall = Text(50, str(playerl.potential), screen.get_rect().centerx - 300,
+                              screen.get_rect().centery - 300)
+            potentialr = Text(50, str(playerr.potential), screen.get_rect().centerx + 300,
+                              screen.get_rect().centery - 300)
+
+            player_group.update(bullet_group, bullet_group_enemy, playerr, shield_group, screen, game)
+            playerenemy_group.update(bullet_group_enemy, bullet_group, playerl, shield_group_enemy, game)
+            bullet_group.update()
+            bullet_group_enemy.update()
+            shield_group.update(bullet_group_enemy, playerl, screen)
+            shield_group_enemy.update(bullet_group, playerr, screen)
+
+            screen.blit(potentialr.image, potentialr.rect)
+            screen.blit(potentiall.image, potentiall.rect)
+            screen.blit(playerl.image, playerl.rect)
+            screen.blit(playerr.image, playerr.rect)
+            for b in bullet_group:
+                screen.blit(b.image, b.rect)
+            for b in bullet_group_enemy:
+                screen.blit(b.image, b.rect)
+
+
+            TIMER += 1
+
+            clock.tick(60)
+            pygame.display.flip()
+
+
+        while game.outro:
+            screen.blit(outro_bg, (0, 0))
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN or pygame.key.get_pressed()[pygame.K_RETURN] != 0:
+                    screen.blit(endblink.image, endblink.rect)
+                    if playerl.energy > playerr.energy:
+                        screen.blit(outrowinnerl.image, outrowinnerl.rect)
+                    else:
+                        screen.blit(outrowinnerr.image, outrowinnerr.rect)
+                    pygame.display.flip()
+                    pygame.time.wait(500)
+                    main()
+
+
+            cur_time = pygame.time.get_ticks()
+            if ((beg_time - cur_time) % 1000) < 500:
+                screen.blit(endblink.image, endblink.rect)
+
+            if playerl.energy > playerr.energy:
+                screen.blit(outrowinnerl.image, outrowinnerl.rect)
+            else:
+                screen.blit(outrowinnerr.image, outrowinnerr.rect)
+
+            clock.tick(60)
+
+            pygame.display.flip()
+main()
